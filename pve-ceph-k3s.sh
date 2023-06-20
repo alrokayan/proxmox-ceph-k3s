@@ -897,8 +897,6 @@ ____EOF____
       echo "------------------ DEPLOYMENT ----------------------"
       echo "----------------------------------------------------"
       echo "FSID: $FSID"
-      echo "ADMIN_USER_KEY: $ADMIN_USER_KEY"
-      echo "KUBECONFIG: $KUBECONFIG"
       echo "----------------------------------------------------"
       echo "Please select one of the following options:"
       echo "----------------------------------------------------"

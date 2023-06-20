@@ -6,10 +6,16 @@ wget https://raw.githubusercontent.com/alrokayan/proxmox-ceph-k3s/main/pve-ceph-
 ```
 
 
-# SCREENS SHOTS:
+# SCREENS:
+## Main Menu
+![main-menu](image/README/main-menu.png)
 
-![1687236900152](image/README/1687236900152.png)
+## Infrastracture Menu
+![infra-menu](image/README/infra-menu.png)
 
-![1687236906779](image/README/1687236906779.png)
+## Storage Menu
+![storage-menu](image/README/storage-menu.png)
 
-![1687236910070](image/README/1687236910070.png)
+## Deployment Menu
+![deployment-menu](image/README/deployment-menu.png)
+
