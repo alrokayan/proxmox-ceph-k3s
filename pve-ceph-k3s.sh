@@ -193,9 +193,9 @@ __EOF__
 function _filesGenerationExample () {
 mkdir -p auto-gen
 
-if [ ! -f "auto-gen/manifest5.yaml" ]; then
-  echo "-- auto-gen/manifest5.yaml is missing, generating it now ..."
-  cat > auto-gen/manifest5.yaml << __EOF__
+if [ ! -f "auto-gen/manifest-wordpress.yaml" ]; then
+  echo "-- auto-gen/manifest-wordpress.yaml is missing, generating it now ..."
+  cat > auto-gen/manifest-wordpress.yaml << __EOF__
 ---
 apiVersion: v1
 kind: PersistentVolume
@@ -404,7 +404,7 @@ spec:
           claimName: $WP_RBD_IMAGE_NAME-pvc
 __EOF__
   else
-    echo "-- auto-gen/manifest5.yaml is present, skipping generation ..."
+    echo "-- auto-gen/manifest-wordpress.yaml is present, skipping generation ..."
   fi
 }
 
@@ -1185,27 +1185,28 @@ ____EOF____
       while true
       do
       clear
-      echo "-----------------------------------------------------"
-      echo "-------------------- DEPLOYMENT ---------------------"
-      echo "-----------------------------------------------------"
+      echo "------------------------------------------------------------"
+      echo "------------------------ DEPLOYMENT ------------------------"
+      echo "------------------------------------------------------------"
       echo "FSID: $FSID"
-      echo "-----------------------------------------------------"
+      echo "------------------------------------------------------------"
       echo ">> Please select one of the following options:"
-      echo "-----------------------------------------------------"
-      echo "(qc)   < Exit and CLEAN UP"
-      echo "(q)    < Exit"
-      echo "-----------------------------------------------------"
-      echo "[1]....Install helm, kubectl & coreutils on mac"
-      echo "[2]....Create \"$K8S_NAMESPACE\" namespaces"
-      echo "[3]....Deploy Ceph CSI   | (rc)...Remove Ceph CSI"
-      echo "[4]....Create PV/PVC     | (rp)...Remove a PV/PVC"
-      echo "-----------------------------------------------------"
-      echo "(d1)...Deploy manifest 1 | (u1)...Undeploy manifest 1"
-      echo "(d2)...Deploy manifest 2 | (u2)...Undeploy manifest 2"
-      echo "(d3)...Deploy manifest 3 | (u3)...Undeploy manifest 3"
-      echo "(d4)...Deploy manifest 4 | (u4)...Undeploy manifest 4"
-      echo "(d5)...Deploy wordpress  | (u5)...Undeploy wordpress "
-      echo "-----------------------------------------------------"
+      echo "------------------------------------------------------------"
+      echo "(qc)  < Exit and CLEAN UP"
+      echo "(q)   < Exit"
+      echo "------------------------------------------------------------"
+      echo "[1]...Install brew, helm (and add repos), kubectl, Kompose,"
+      echo "      and coreutils on mac"
+      echo "[2]...Create \"$K8S_NAMESPACE\" namespaces"
+      echo "[3]...Deploy Ceph CSI       | (d3)...Delete Ceph CSI"
+      echo "[4]...Create PV/PVC         | (d4)...Delete a PV/PVC"
+      echo "------------------------------------------------------------"
+      echo "(5)...Deploy manifest 1     | (d5)...Undeploy manifest 1"
+      echo "(6)...Deploy manifest 2     | (d6)...Undeploy manifest 2"
+      echo "(7)...Deploy manifest 3     | (d7)...Undeploy manifest 3"
+      echo "(8)...Deploy docker compose | (d8)...Undeploy docker compose"
+      echo "(9)...Deploy wordpress      | (d9)...Undeploy wordpress "
+      echo "------------------------------------------------------------"
       read DEPLOYMENT_OPTION
       case $DEPLOYMENT_OPTION in
         qc)
@@ -1218,6 +1219,7 @@ ____EOF____
           break
           ;;
         1)
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
           brew install helm
           brew install kubectl
           brew install coreutils
@@ -1266,27 +1268,31 @@ ____EOF____
           kubectl apply -n $K8S_NAMESPACE -f auto-gen/pvc/$RBD_IMAGE_NAME-pvc.yaml
           END_OF_SCRIPT
           ;;
-        d1)
+        5)
           nano auto-gen/manifest1.yaml
           kubectl apply -n $K8S_NAMESPACE -f auto-gen/manifest1.yaml
           END_OF_SCRIPT
           ;;
-        d2)
+        6)
           nano auto-gen/manifest2.yaml
           kubectl apply -n $K8S_NAMESPACE -f auto-gen/manifest2.yaml
           END_OF_SCRIPT
           ;;
-        d3)
+        7)
           nano auto-gen/manifest3.yaml
           kubectl apply -n $K8S_NAMESPACE -f auto-gen/manifest3.yaml
           END_OF_SCRIPT
           ;;
-        d4)
-          nano auto-gen/manifest4.yaml
-          kubectl apply -n $K8S_NAMESPACE -f auto-gen/manifest4.yaml
+        8)
+          mkdir -p auto-gen/kompose
+          nano auto-gen/kompose/docker-compose.yaml
+          cd auto-gen/kompose
+          kompose convert
+          kubectl apply -n $K8S_NAMESPACE -f auto-gen/kompose/
+          cd ../../
           END_OF_SCRIPT
           ;;
-        d5)
+        9)
           clear
           echo "-- List of current RBD images in \"$POOL_NAME\" pool:"
           ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} "rbd ls --pool $POOL_NAME"
@@ -1339,37 +1345,37 @@ ____EOF____
           echo "-- MYSQL_PASSWORD: $MYSQL_PASSWORD"
           _filesGenerationExample
 
-          nano auto-gen/manifest5.yaml
-          timeout 5 kubectl apply -n $K8S_NAMESPACE -f auto-gen/manifest5.yaml
+          nano auto-gen/manifest-wordpress.yaml
+          timeout 5 kubectl apply -n $K8S_NAMESPACE -f auto-gen/manifest-wordpress.yaml
           END_OF_SCRIPT
           ;;
-        u1)
+        d5)
           echo "-- DELETEING LAST CREATED MANIFEST ..."
           timeout 5 kubectl delete -n $K8S_NAMESPACE -f auto-gen/manifest1.yaml --force --grace-period=0
           END_OF_SCRIPT
           ;;
-        u2)
+        d6)
           echo "-- DELETEING LAST CREATED MANIFEST ..."
           timeout 5 kubectl delete -n $K8S_NAMESPACE -f auto-gen/manifest2.yaml --force --grace-period=0
           END_OF_SCRIPT
           ;;
-        u3)
+        d7)
           echo "-- DELETEING LAST CREATED MANIFEST ..."
           timeout 5 kubectl delete -n $K8S_NAMESPACE -f auto-gen/manifest3.yaml --force --grace-period=0
           END_OF_SCRIPT
           ;;
-        u4)
+        d8)
           echo "-- DELETEING LAST CREATED MANIFEST ..."
-          timeout 5 kubectl delete -n $K8S_NAMESPACE -f auto-gen/manifest4.yaml --force --grace-period=0
+          timeout 5 kubectl delete -n $K8S_NAMESPACE -f auto-gen/docker-compose.yaml --force --grace-period=0
           END_OF_SCRIPT
           ;;
-        u5)
+        d9)
           echo "-- DELETEING LAST CREATED MANIFEST ..."
           _filesGenerationExample
-          timeout 5 kubectl delete -n $K8S_NAMESPACE -f auto-gen/manifest5.yaml --force --grace-period=0
+          timeout 5 kubectl delete -n $K8S_NAMESPACE -f auto-gen/manifest-wordpress.yaml --force --grace-period=0
           END_OF_SCRIPT
           ;;
-        rc)
+        d3)
           echo "-- DELETEING CEPH CSI ..."
           source auto-gen/ceph.env
           echo "-- FSID: ${FSID}"
@@ -1381,7 +1387,7 @@ ____EOF____
           timeout 5 kubectl delete -n kube-system -f auto-gen/csi/ --force --grace-period=0
           END_OF_SCRIPT
           ;;
-        rp)
+        d4)
           echo "-- List of deployed PVs (PV/PVs):"
           kubectl get pv -n $K8S_NAMESPACE
           echo ">> Please enter the volume name (the same as RBD image name) to delete (Default: rbd-image)"
