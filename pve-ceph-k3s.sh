@@ -132,7 +132,6 @@ function _filesGenerationPV () {
   mkdir -p auto-gen/pvc
 
   # STATIC RBD: https://github.com/ceph/ceph-csi/blob/release-v3.8/docs/static-pvc.md
-
   if [ ! -f "auto-gen/pv/$RBD_IMAGE_NAME-pv.yaml" ]; then
     echo "-- $RBD_IMAGE_NAME-pv.yaml is missing, generating it now ..."
     cat > auto-gen/pv/$RBD_IMAGE_NAME-pv.yaml << __EOF__
@@ -453,6 +452,23 @@ if [ ! -f "auto-gen/pve.env" ]; then
   fi
   echo "PVE3=${PVE3}" >> auto-gen/pve.env
 
+  echo "Which PVE is the default PVE server for Proxmox cluster (1, 2 or 3)? (Default: 1)"
+  echo "1 means PVE1, 2 means PVE2, 3 means PVE3"
+  read PVE_DEFAULT_NUM
+  if [[ $PVE_DEFAULT_NUM == "" ]]; then
+    PVE_DEFAULT_NUM="1"
+  fi
+  if [[ $PVE_DEFAULT_NUM == "1" ]]; then
+    PVE_DEFAULT=${PVE1}
+  fi
+  if [[ $PVE_DEFAULT_NUM == "2" ]]; then
+    PVE_DEFAULT=${PVE2}
+  fi
+  if [[ $PVE_DEFAULT_NUM == "3" ]]; then
+    PVE_DEFAULT=${PVE3}
+  fi
+  echo "PVE_DEFAULT=${PVE_DEFAULT}" >> auto-gen/pve.env
+
   echo ">> Please entre the nodes placement in PVE hosts (1, 2 or 3) with a space between them (default: 1 2 3): "
   echo 'Example: "1 1 1" means deploying three nodes kurbernetes cluster, all in PVE1.'
   echo 'Example: "1 1 2 2 3 3" means deploying six nodes kurbernetes cluster where 2 nodes in PVE1, 2 nodes in PVE2 and 2 nodes in PVE3.'
@@ -621,17 +637,19 @@ do
   echo "(qc)  < Exit and CLEAN UP"
   echo "(q)   < Exit"
   echo "----------------------------------------------------"
-  echo "[i]...INFRASTRUCTURE"
-  echo "[s]...STORAGE"
-  echo "[d]...DEPLOYMENT"
+  echo "[i]....INFRASTRUCTURE"
+  echo "[s]....STORAGE"
+  echo "[d]....DEPLOYMENT"
   echo "----------------------------------------------------"
-  echo "(10)..Monitor VMs status"
-  echo "(11)..Monitor K8s cluster status (k9s)"
-  echo "(12)..Monitor Ceph cluster status"
-  echo "(13)..Monitor RBD images list"
-  echo "(14)..Monitor Ceph pool list"
-  echo "(15)..Monitor auto generated files (tree)"
-  echo "(16)..Print environment variables"
+  echo "(10)...Monitor VMs status"
+  echo "(11)...Monitor K8s cluster status (k9s)"
+  echo "(12)...Monitor Ceph cluster status"
+  echo "(13)...Monitor RBD images list"
+  echo "(14)...Monitor Ceph pool list"
+  echo "(15)...Monitor auto generated files (tree)"
+  echo "(16)...Print environment variables"
+  echo "(17)...SSH into default Proxmox node (${PVE_DEFAULT})"
+  echo "(18)...SSH into K8s first master (${NODE_IP_PREFIX}1)"
   echo "-----------------------------------------------------------"
   read OPTION
   case $OPTION in
@@ -645,7 +663,7 @@ do
       exit 0
       ;;
     10) # Monitor VMs status
-      ssh -i ${MY_PUBLIC_KEY} -t ${SSH_USERNAME}@${PVE1} "watch pvesh get /cluster/resources --type vm"
+      ssh -i ${MY_PUBLIC_KEY} -t ${SSH_USERNAME}@${PVE_DEFAULT} "watch pvesh get /cluster/resources --type vm"
       ;;
     11) # Monitor K8s cluster status (k9s)
       k9s -A
@@ -657,13 +675,13 @@ do
       ;;
     12)
       # Ceph Status
-      ssh -i ${MY_PUBLIC_KEY} -t ${SSH_USERNAME}@${PVE1} "watch ceph -s"
+      ssh -i ${MY_PUBLIC_KEY} -t ${SSH_USERNAME}@${PVE_DEFAULT} "watch ceph -s"
       ;;
     13) # Monitor Ceph cluster status
-      ssh -i ${MY_PUBLIC_KEY} -t ${SSH_USERNAME}@${PVE1} "watch rbd ls -p ${POOL_NAME}"
+      ssh -i ${MY_PUBLIC_KEY} -t ${SSH_USERNAME}@${PVE_DEFAULT} "watch rbd ls -p ${POOL_NAME}"
       ;;
     14) # Monitor Ceph pool list
-      ssh -i ${MY_PUBLIC_KEY} -t ${SSH_USERNAME}@${PVE1} "watch ceph osd pool ls"
+      ssh -i ${MY_PUBLIC_KEY} -t ${SSH_USERNAME}@${PVE_DEFAULT} "watch ceph osd pool ls"
       ;;
     15) # Monitor auto generated files (tree)
       watch tree auto-gen
@@ -687,13 +705,11 @@ do
       fi
       END_OF_SCRIPT
       ;;
-      17) ## ssh into PVE1
-          ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1}
-          END_OF_SCRIPT
+      17) ## ssh into PVE_DEFAULT
+          ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_DEFAULT}
           ;;
       18) ## ssh into node1
           ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${NODE_IP_PREFIX}1
-          END_OF_SCRIPT
         ;;
 ##############################################################
 ##############################################################
@@ -704,21 +720,21 @@ do
         while true; do
         clear
         echo "----------------------------------------------------"
-        echo "---------------- INFRASTRUCTURE --------------------"
+        echo "---------------. INFRASTRUCTURE .-------------------"
         echo "----------------------------------------------------"
         echo "Please select one of the following options:"
         echo "----------------------------------------------------"
-        echo "(qc)   < Exit and CLEAN UP"
-        echo "(q)    < Back"
+        echo ".(qc)  < Exit and CLEAN UP"
+        echo ".(q)   < Back"
         echo "----------------------------------------------------"
-        echo "[1]....Initiate the infrastructure"
-        echo "[2]....Download cloud image"
-        echo "[3]....Create VMs"
-        echo "[4]....Install k3sup on mac"
-        echo "[5]....Deploy Kubernetes cluster (k3s)"
+        echo ".[1]....Initiate the infrastructure"
+        echo ".[2]....Download cloud image"
+        echo ".[3]....Create VMs"
+        echo ".[4]....Install k3sup on mac"
+        echo ".[5]....Deploy Kubernetes cluster (k3s)"
         echo "----------------------------------------------------"
-        echo "(w)....Wipe clean Kubernetes cluster's nodes"
-        echo "(n)....NUKE (Delete VMs)"
+        echo ".(wipE).Wipe clean Kubernetes cluster's nodes"
+        echo ".(nukE).Delete all VMs"
         echo "----------------------------------------------------"
         read INFRA_OPTION
         case $INFRA_OPTION in
@@ -751,10 +767,10 @@ do
             ssh-copy-id -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE}
           done
 
-          echo ">> Do you want to copy the groups.cfg to the PVE1 host (${PVE1})? (y/N)"
+          echo ">> Do you want to copy the groups.cfg to the default PVE host (${PVE_DEFAULT})? (y/N)"
           read COPY_GROUPS_CFG
           if [[ $COPY_GROUPS_CFG == "y" ]]; then
-            scp config/groups.cfg ${SSH_USERNAME}@${PVE1}:/etc/pve/ha/groups.cfg
+            scp config/groups.cfg ${SSH_USERNAME}@${PVE_DEFAULT}:/etc/pve/
           fi
           for PVE in ${PVE1} ${PVE2} ${PVE3}
           do
@@ -844,7 +860,7 @@ qm cloudinit update ${VM_ID}
 qm importdisk ${VM_ID} ${DOWNLOAD_FOLDER}cloud-image.raw ${STORAGEID} --format raw 
 qm set ${VM_ID} --scsi0 ${STORAGEID}:vm-${VM_ID}-disk-0,aio=threads,backup=0,cache=writeback,iothread=1,replicate=0,ssd=1 &>/dev/null
 qm set ${VM_ID} --scsi0 ${STORAGEID}:${VM_ID}/vm-${VM_ID}-disk-0.raw,aio=threads,backup=0,cache=writeback,iothread=1,replicate=0,ssd=1 &>/dev/null
-ha-manager add vm:${VM_ID} --state started --max_relocate 4 --max_restart 1 --group ${VM_NAME}
+ha-manager add vm:${VM_ID} --state started --max_relocate 0 --max_restart 5 --group ${VM_NAME}
 rm -f /tmp/${SSH_FILE}
 ___EOF___
           ID=$(( ID+1 ))
@@ -943,7 +959,7 @@ ____EOF____
           END_OF_SCRIPT
           break
           ;;
-        w) ## Wipe clean Kubernetes cluster's nodes
+        wipE) ## Wipe clean Kubernetes cluster's nodes
           ID=1
           for PLACEMENT in ${VM_PLACEMENT[@]}
           do
@@ -957,7 +973,7 @@ ____EOF____
           done
           END_OF_SCRIPT
           ;;
-        n) ## Destroy all VMs in all PVEs
+        nukE) ## Destroy all VMs in all PVEs
           for PVE in ${PVE1} ${PVE2} ${PVE3}
           do
             echo "-- Removing VMs in PVE: ${PVE} ..."
@@ -1000,28 +1016,32 @@ ____EOF____
       while true; do
         clear
         echo "----------------------------------------------------"
-        echo "------------------- STORAGE ------------------------"
+        echo "-----------------.. STORAGE ..----------------------"
         echo "----------------------------------------------------"
         echo "Please select one of the following options:"
         echo "----------------------------------------------------"
-        echo "(qc)   < Exit and CLEAN UP"
-        echo "(q)    < Exit"
+        echo "..(qc)   < Exit and CLEAN UP"
+        echo "..(q)    < Exit"
         echo "----------------------------------------------------"
-        echo "[1]....Create \"$POOL_NAME\" RBD Pool"
-        echo "[2]....Create RBD Images"
-        echo "[3]....Mount RBD images"
-        echo "[4]....-- Copy files to RBD images -->"
-        echo "[5]....<-- Copy files from RBD images --"
+        echo "..[1]....Create \"$POOL_NAME\" RBD Pool"
+        echo "..[2]....Create RBD Images"
+        echo "..[3]....Mount RBD images"
+        echo "..[4]....-- Copy files to RBD images -->"
+        echo "..[5]....<-- Copy files from RBD images --"
         echo "----------------------------------------------------"
-        echo "(z)....Zap disks"
-        echo "(u)....Unmount RBD images"
-        echo "(d)....Delete RBD images"
+        echo "..(pg)...Calculate PGs"
+        echo "..(z1)...Zap disks in PVE1"
+        echo "..(z2)...Zap disks in PVE2"
+        echo "..(z3)...Zap disks in PVE3"
+        echo "..(um)...Unmount RBD images"
+        echo "..(del)..Delete RBD images"
+        echo "..(nukE).ShredOS - Disk Eraser"
         echo "----------------------------------------------------"
         read STORAGE_OPTION
         case $STORAGE_OPTION in
         qc)
           echo "-- Cleaning up..."
-          rm -rf auto-gen/
+          rm -rf auto-gen/ 
           rm -rf ceph-csi
           exit 0
           ;;
@@ -1030,8 +1050,8 @@ ____EOF____
           ;;
         1)
             echo "-- Creating RBD pool $POOL_NAME ..."
-            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} pveceph pool create $POOL_NAME --application rbd --pg_autoscale_mode on
-            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} pveceph lspools
+            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_DEFAULT} pveceph pool create $POOL_NAME --application rbd --pg_autoscale_mode on
+            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_DEFAULT} pveceph lspools
             END_OF_SCRIPT
             ;;
         2)
@@ -1046,7 +1066,7 @@ ____EOF____
               SIZE=1G
             fi
             echo "-- Creating ${RBD_IMAGE} RDB with size ${SIZE} at pool \"$POOL_NAME\""
-            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} "rbd create ${RBD_IMAGE} --size=${SIZE} --pool=$POOL_NAME"
+            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_DEFAULT} "rbd create ${RBD_IMAGE} --size=${SIZE} --pool=$POOL_NAME"
             END_OF_SCRIPT
             ;;
         3) # Mount RBD images
@@ -1056,7 +1076,7 @@ ____EOF____
               RBD_IMAGE="rbd-image"
             fi
             echo "-- Mapping and mounting ${RBD_IMAGE} RBD to /mnt/rbd/${RBD_IMAGE} folder"
-            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} "rbd map ${RBD_IMAGE} --pool $POOL_NAME  --id admin --keyring /etc/pve/priv/ceph.client.admin.keyring"
+            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_DEFAULT} "rbd map ${RBD_IMAGE} --pool $POOL_NAME  --id admin --keyring /etc/pve/priv/ceph.client.admin.keyring"
             
             echo ">> RBD image has been mapped but not mounted yet. Do you want to make filesystem (mkfs.xfs) on the mapped $RBD_IMAGE RBD image before mounting? (y/N)"
             read MKFS_RBD_IMAGE
@@ -1066,12 +1086,12 @@ ____EOF____
               MKFS_RBD_IMAGE=false
             fi
             if [ $MKFS_RBD_IMAGE == "true" ]; then
-              ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} "mkfs.xfs /dev/rbd/$POOL_NAME/${RBD_IMAGE}"
+              ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_DEFAULT} "mkfs.xfs /dev/rbd/$POOL_NAME/${RBD_IMAGE}"
             fi
 
-            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} "mkdir -p /mnt/rbd/${RBD_IMAGE}"
-            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} "mount /dev/rbd/$POOL_NAME/${RBD_IMAGE} /mnt/rbd/${RBD_IMAGE}"
-            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} df -h
+            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_DEFAULT} "mkdir -p /mnt/rbd/${RBD_IMAGE}"
+            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_DEFAULT} "mount /dev/rbd/$POOL_NAME/${RBD_IMAGE} /mnt/rbd/${RBD_IMAGE}"
+            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_DEFAULT} df -h
             END_OF_SCRIPT
             ;;
         4) # Copy data to RBD images
@@ -1085,14 +1105,14 @@ ____EOF____
             read DELETE_DATA_IN_MOUNTED_VOLUMES
             if [[ $DELETE_DATA_IN_MOUNTED_VOLUMES == "y" ]]; then
               echo "-- Deleting/Cleaning ..."
-              ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} rm -rf /mnt/rbd/$RBD_IMAGE/*
+              ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_DEFAULT} rm -rf /mnt/rbd/$RBD_IMAGE/*
             fi
             mkdir -p rbd/$RBD_IMAGE
             echo ">> Please put your files in "rbd/$RBD_IMAGE" folder (rbd/$RBD_IMAGE folder just created in your computer if not exist"
             echo "Press any key to continue ..."
             read
             echo "-- Copying ..."
-            rsync -r --progress rbd/$RBD_IMAGE/* ${SSH_USERNAME}@${PVE1}:/mnt/rbd/$RBD_IMAGE/
+            rsync -r --progress rbd/$RBD_IMAGE/* ${SSH_USERNAME}@${PVE_DEFAULT}:/mnt/rbd/$RBD_IMAGE/
             END_OF_SCRIPT
             ;;
         5) # Copy data from RBD images
@@ -1103,34 +1123,60 @@ ____EOF____
             fi
 
             echo "-- Copying ..."
-            rsync -r --progress ${SSH_USERNAME}@${PVE1}:/mnt/rbd/$RBD_IMAGE/* rbd/$RBD_IMAGE/
+            rsync -r --progress ${SSH_USERNAME}@${PVE_DEFAULT}:/mnt/rbd/$RBD_IMAGE/* rbd/$RBD_IMAGE/
             END_OF_SCRIPT
             ;;
-        z)
+        pg)
+            # Laurent Barbe
+            # Credit: http://cephnotes.ksperis.com/blog/2015/02/23/get-the-number-of-placement-groups-per-osd
+            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_DEFAULT} bash << '__EOF__'
+ceph pg dump | awk '
+BEGIN { IGNORECASE = 1 }
+/^PG_STAT/ { col=1; while($col!="UP") {col++}; col++ }
+/^[0-9a-f]+\.[0-9a-f]+/ { match($0,/^[0-9a-f]+/); pool=substr($0, RSTART, RLENGTH); poollist[pool]=0;
+up=$col; i=0; RSTART=0; RLENGTH=0; delete osds; while(match(up,/[0-9]+/)>0) { osds[++i]=substr(up,RSTART,RLENGTH); up = substr(up, RSTART+RLENGTH) }
+for(i in osds) {array[osds[i],pool]++; osdlist[osds[i]];}
+}
+END {
+printf("\n");
+printf("pool :\t"); for (i in poollist) printf("%s\t",i); printf("| SUM \n");
+for (i in poollist) printf("--------"); printf("----------------\n");
+for (i in osdlist) { printf("osd.%i\t", i); sum=0;
+  for (j in poollist) { printf("%i\t", array[i,j]); sum+=array[i,j]; sumpool[j]+=array[i,j] }; printf("| %i\n",sum) }
+for (i in poollist) printf("--------"); printf("----------------\n");
+printf("SUM :\t"); for (i in poollist) printf("%s\t",sumpool[i]); printf("|\n");
+}'
+__EOF__
+            END_OF_SCRIPT
+            ;;
+        z1)
             # Zap disk in PVE1
             echo "PVE1 Disks:"
             ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} "find /dev/disk/by-id/ -type l|xargs -I{} ls -l {}|grep -v -E '[0-9]$' |sort -k11|cut -d' ' -f9,10,11,12"
             echo ">> Please enter the disk name to zap in PVE1:"
             read PVE1_CEPH_DISK
             ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} ceph-volume lvm zap ${PVE1_CEPH_DISK} --destroy
-
+            END_OF_SCRIPT 
+            ;;
+        z2)
             # Zap disk in PVE2
             echo "PVE2 Disks:"
             ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE2} "find /dev/disk/by-id/ -type l|xargs -I{} ls -l {}|grep -v -E '[0-9]$' |sort -k11|cut -d' ' -f9,10,11,12"
             echo ">> Please enter the disk name to zap in PVE2:"
             read PVE2_CEPH_DISK
             ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE2} ceph-volume lvm zap ${PVE2_CEPH_DISK} --destroy
-
+            END_OF_SCRIPT 
+            ;;
+        z3)
             # Zap disk in PVE3
             echo "PVE3 Disks:"
             ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE3} "find /dev/disk/by-id/ -type l|xargs -I{} ls -l {}|grep -v -E '[0-9]$' |sort -k11|cut -d' ' -f9,10,11,12"
             echo ">> Please enter the disk name to zap in PVE3:"
             read PVE3_CEPH_DISK
             ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE3} ceph-volume lvm zap ${PVE3_CEPH_DISK} --destroy
-
             END_OF_SCRIPT 
             ;;
-        u) # Unmount RBD 
+        um) # Unmount RBD 
             echo ">> Please enter the RBD image name to mount in /mnt/rbd/ (Default: rbd-image)"
             read RBD_IMAGE
             if [[ $RBD_IMAGE == "" ]]; then
@@ -1138,20 +1184,87 @@ ____EOF____
             fi
 
             echo "-- Unmounting and unmapping ${RBD_IMAGE} .."
-            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} "umount /mnt/rbd/${RBD_IMAGE}"
-            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} "rbd unmap -o force ${RBD_IMAGE} --pool=$POOL_NAME --id admin --keyring /etc/pve/priv/ceph.client.admin.keyring"
+            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_DEFAULT} "umount /mnt/rbd/${RBD_IMAGE}"
+            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_DEFAULT} "rbd unmap -o force ${RBD_IMAGE} --pool=$POOL_NAME --id admin --keyring /etc/pve/priv/ceph.client.admin.keyring"
             END_OF_SCRIPT
             ;;
-        d) # Delete RBD image            
+        del) # Delete RBD image            
             echo "-- List of current RBD images in \"$POOL_NAME\" pool:"
-            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} "rbd ls --pool $POOL_NAME"
+            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_DEFAULT} "rbd ls --pool $POOL_NAME"
 
             echo ">> Please enter the RBD image name to delete (Default: rbd-image)"
             read RBD_IMAGE
             if [[ $RBD_IMAGE == "" ]]; then
               RBD_IMAGE="rbd-image"
             fi
-            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} "rbd rm ${RBD_IMAGE} --pool $POOL_NAME"
+            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_DEFAULT} "rbd rm ${RBD_IMAGE} --pool $POOL_NAME"
+            ;;
+        nukE)
+          echo "Please enter the storage ID to store the iso files in (Default: cephfs)"
+          read ISO_STORAGE_ID
+          if [[ $ISO_STORAGE_ID == "" ]]; then
+            ISO_STORAGE_ID="cephfs"
+          fi
+          echo "Please enter the iso download location on PVE1 (Default: /mnt/pve/cephfs/template/iso/)"
+          read ISO_DOWNLOAD_LOCATION
+          if [[ $ISO_DOWNLOAD_LOCATION == "" ]]; then
+            ISO_DOWNLOAD_LOCATION="/mnt/pve/cephfs/template/iso/"
+          fi
+          echo "Please enter the VM ID (Default: 911)"
+          read VM_ID
+          if [[ $VM_ID == "" ]]; then
+            VM_ID="911"
+          fi
+          echo "In which PVE do you want to create the \"ShredOS - Disk Eraser\" VM (1, 2 or 3)? (Default: 2)"
+          read PVE_NUM
+          if [[ $PVE_NUM == "" ]]; then
+            PVE_NUM="2"
+          fi
+          if [[ $PVE_NUM == "1" ]]; then
+            PVE_IP=${PVE1}
+          fi
+          if [[ $PVE_NUM == "2" ]]; then
+            PVE_IP=${PVE2}
+          fi
+          if [[ $PVE_NUM == "3" ]]; then
+            PVE_IP=${PVE3}
+          fi
+          ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@$PVE_IP lsusb
+          echo ">> Please enter the disk ID to attach to \"ShredOS - Disk Eraser\" VM (Example abcd:1234):"
+          read PVE_CEPH_DISK
+          echo "-- Creating VM: ${VM_ID} in PVE${PVE_NUM}: .."
+          ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@$PVE_IP bash << ___EOF___
+#!/bin/bash
+if [ ! -f "${ISO_DOWNLOAD_LOCATION}shredos-2021.08.2_23_x86-64_0.34_20221231.iso" ]; then
+  curl -L https://github.com/PartialVolume/shredos.x86_64/releases/download/v2021.08.2_23_x86-64_0.34/shredos-2021.08.2_23_x86-64_0.34_20221231.iso -o ${ISO_DOWNLOAD_LOCATION}shredos-2021.08.2_23_x86-64_0.34_20221231.iso
+fi
+
+qm unlock ${VM_ID} &>/dev/null
+qm stop ${VM_ID} &>/dev/null
+qm destroy ${VM_ID} --destroy-unreferenced-disks --purge true --skiplock true &>/dev/null
+
+qm create ${VM_ID} \
+    --cdrom ${ISO_STORAGE_ID}:iso/shredos-2021.08.2_23_x86-64_0.34_20221231.iso \
+    --name "shredos-disk-eraser" \
+    --memory ${PVE_MEMORY} \
+    --cpu host \
+    --cores ${PVE_CPU_CORES} \
+    --ostype l26
+qm set ${VM_ID} -usb0 host=${PVE_CEPH_DISK}
+qm start ${VM_ID}
+___EOF___
+            PVE_HOST_NAME=$(ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@$PVE_IP hostname)
+            URL='https://'${PVE_IP}':8006/?console=kvm&novnc=1&vmid='${VM_ID}'&vmname=shredos-disk-eraser&node='${PVE_HOST_NAME}'&resize=off&cmd='
+            echo "VM CONSOLE: $URL"
+            open $URL
+            echo "Please press any key to continue and delete \"ShredOS - Disk Eraser\" VM .."
+            read
+            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@$PVE_IP bash << ___EOF___
+qm unlock ${VM_ID}
+qm stop ${VM_ID}
+qm destroy ${VM_ID} --destroy-unreferenced-disks --purge true --skiplock true
+___EOF___
+            END_OF_SCRIPT
             ;;
         *)
           echo "--?-- Invalid option"
@@ -1166,11 +1279,12 @@ ____EOF____
 ##############################################################
 ##############################################################
     d)
-      if [ ! -f "auto-gen/ceph.env" ]; then
-        echo "auto-gen/ceph.env file not found .."
+      if [ ! -f "auto-gen/ceph.env" ] || [[ $FSID == "" ]] || [[ $ADMIN_USER_KEY == "" ]] || [[ $KUBECONFIG == "" ]]; then
+        mkdir -p auto-gen
+        echo "auto-gen/ceph.env file not found or environment variables not set .."
         echo "Getting FSID and ADMIN_USER_KEY from Proxmox cluster .. please wait .."
-        echo "FSID="$(ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} "ceph fsid") > auto-gen/ceph.env
-        echo "ADMIN_USER_KEY="$(ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} cat /etc/pve/priv/ceph.client.admin.keyring | grep key |  sed 's/.*key = //') >> auto-gen/ceph.env
+        echo "FSID="$(ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_DEFAULT} "ceph fsid") > auto-gen/ceph.env
+        echo "ADMIN_USER_KEY="$(ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_DEFAULT} cat /etc/pve/priv/ceph.client.admin.keyring | grep key |  sed 's/.*key = //') >> auto-gen/ceph.env
         echo "MON1=${PVE1}" >> auto-gen/ceph.env
         echo "MON2=${PVE2}" >> auto-gen/ceph.env
         echo "MON3=${PVE3}" >> auto-gen/ceph.env
@@ -1185,28 +1299,28 @@ ____EOF____
       while true
       do
       clear
-      echo "------------------------------------------------------------"
-      echo "------------------------ DEPLOYMENT ------------------------"
-      echo "------------------------------------------------------------"
+      echo "--------------------------------------------------------------"
+      echo "----------------------... DEPLOYMENT ...----------------------"
+      echo "--------------------------------------------------------------"
       echo "FSID: $FSID"
-      echo "------------------------------------------------------------"
+      echo "--------------------------------------------------------------"
       echo ">> Please select one of the following options:"
-      echo "------------------------------------------------------------"
-      echo "(qc)  < Exit and CLEAN UP"
-      echo "(q)   < Exit"
-      echo "------------------------------------------------------------"
-      echo "[1]...Install brew, helm (and add repos), kubectl, Kompose,"
-      echo "      and coreutils on mac"
-      echo "[2]...Create \"$K8S_NAMESPACE\" namespaces"
-      echo "[3]...Deploy Ceph CSI       | (d3)...Delete Ceph CSI"
-      echo "[4]...Create PV/PVC         | (d4)...Delete a PV/PVC"
-      echo "------------------------------------------------------------"
-      echo "(5)...Deploy manifest 1     | (d5)...Undeploy manifest 1"
-      echo "(6)...Deploy manifest 2     | (d6)...Undeploy manifest 2"
-      echo "(7)...Deploy manifest 3     | (d7)...Undeploy manifest 3"
-      echo "(8)...Deploy docker compose | (d8)...Undeploy docker compose"
-      echo "(9)...Deploy wordpress      | (d9)...Undeploy wordpress "
-      echo "------------------------------------------------------------"
+      echo "--------------------------------------------------------------"
+      echo "...(qc)  < Exit and CLEAN UP"
+      echo "...(q)   < Exit"
+      echo "--------------------------------------------------------------"
+      echo "...[1]...Install brew, helm (and add repos), kubectl, Kompose,"
+      echo "      and CoreUtils on mac"
+      echo "...[2]...Create \"$K8S_NAMESPACE\" namespaces"
+      echo "...[3]...Deploy Ceph CSI          | (d3)...Delete Ceph CSI"
+      echo "...[4]...Create PV/PVC            | (d4)...Delete a PV/PVC"
+      echo "--------------------------------------------------------------"
+      echo "...(5)...Deploy manifest 1        | (d5)...Undeploy manifest 1"
+      echo "...(6)...Deploy manifest 2        | (d6)...Undeploy manifest 2"
+      echo "...(7)...Deploy manifest 3        | (d7)...Undeploy manifest 3"
+      echo "...(8)...Deploy Kompose a Compose | (d8)...Undeploy Kompose"
+      echo "...(9)...Deploy wordpress         | (d9)...Undeploy wordpress "
+      echo "--------------------------------------------------------------"
       read DEPLOYMENT_OPTION
       case $DEPLOYMENT_OPTION in
         qc)
@@ -1295,7 +1409,7 @@ ____EOF____
         9)
           clear
           echo "-- List of current RBD images in \"$POOL_NAME\" pool:"
-          ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} "rbd ls --pool $POOL_NAME"
+          ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_DEFAULT} "rbd ls --pool $POOL_NAME"
           
           echo ">> Please enter the volume name (the same as RBD image name) for My SQL (Default: mysql-rbd-image)"
           read MYSQL_RBD_IMAGE_NAME
@@ -1307,12 +1421,12 @@ ____EOF____
           if [[ $MYSQL_RBD_IMAGE_SIZE == "" ]]; then
             MYSQL_RBD_IMAGE_SIZE="1G"
           fi
-          ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} "rbd info ${MYSQL_RBD_IMAGE_NAME} --pool $POOL_NAME" &>/dev/null
+          ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_DEFAULT} "rbd info ${MYSQL_RBD_IMAGE_NAME} --pool $POOL_NAME" &>/dev/null
           if [[ $? == 0 ]]; then
             echo "-- The image \"$MYSQL_RBD_IMAGE_NAME\" is already created in \"$POOL_NAME\" pool"
           else
             echo "-- The image \"$MYSQL_RBD_IMAGE_NAME\" is not created in \"$POOL_NAME\" pool. Creating..."
-            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} "rbd create ${MYSQL_RBD_IMAGE_NAME} --size ${MYSQL_RBD_IMAGE_SIZE} --pool $POOL_NAME"
+            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_DEFAULT} "rbd create ${MYSQL_RBD_IMAGE_NAME} --size ${MYSQL_RBD_IMAGE_SIZE} --pool $POOL_NAME"
             if [[ $? != 0 ]]; then
               echo "--?-- Failed to create the image \"$MYSQL_RBD_IMAGE_NAME\" in \"$POOL_NAME\" pool"
               exit 1
@@ -1329,12 +1443,12 @@ ____EOF____
           if [[ $WP_RBD_IMAGE_SIZE == "" ]]; then
             WP_RBD_IMAGE_SIZE="1G"
           fi
-          ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} "rbd info ${WP_RBD_IMAGE_NAME} --pool $POOL_NAME" &>/dev/null
+          ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_DEFAULT} "rbd info ${WP_RBD_IMAGE_NAME} --pool $POOL_NAME" &>/dev/null
           if [[ $? == 0 ]]; then
             echo "-- The image \"$WP_RBD_IMAGE_NAME\" is already created in \"$POOL_NAME\" pool"
           else
             echo "-- The image \"$WP_RBD_IMAGE_NAME\" is not created in \"$POOL_NAME\" pool. Creating..."
-            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} "rbd create ${WP_RBD_IMAGE_NAME} --size ${WP_RBD_IMAGE_SIZE} --pool $POOL_NAME"
+            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_DEFAULT} "rbd create ${WP_RBD_IMAGE_NAME} --size ${WP_RBD_IMAGE_SIZE} --pool $POOL_NAME"
             if [[ $? != 0 ]]; then
               echo "--?-- Failed to create the image \"$WP_RBD_IMAGE_NAME\" in \"$POOL_NAME\" pool"
               exit 1
