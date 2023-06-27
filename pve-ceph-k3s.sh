@@ -454,20 +454,21 @@ if [ ! -f "auto-gen/pve.env" ]; then
 
   echo "Which PVE is the default PVE server for Proxmox cluster (1, 2 or 3)? (Default: 1)"
   echo "1 means PVE1, 2 means PVE2, 3 means PVE3"
-  read PVE_DEFAULT_NUM
-  if [[ $PVE_DEFAULT_NUM == "" ]]; then
-    PVE_DEFAULT_NUM="1"
+  read PVE_DEFAULT_ID
+  if [[ $PVE_DEFAULT_ID == "" ]]; then
+    PVE_DEFAULT_ID="1"
   fi
-  if [[ $PVE_DEFAULT_NUM == "1" ]]; then
+  if [[ $PVE_DEFAULT_ID == "1" ]]; then
     PVE_DEFAULT=${PVE1}
   fi
-  if [[ $PVE_DEFAULT_NUM == "2" ]]; then
+  if [[ $PVE_DEFAULT_ID == "2" ]]; then
     PVE_DEFAULT=${PVE2}
   fi
-  if [[ $PVE_DEFAULT_NUM == "3" ]]; then
+  if [[ $PVE_DEFAULT_ID == "3" ]]; then
     PVE_DEFAULT=${PVE3}
   fi
   echo "PVE_DEFAULT=${PVE_DEFAULT}" >> auto-gen/pve.env
+  echo "PVE_DEFAULT_ID=${PVE_DEFAULT_ID}" >> auto-gen/pve.env
 
   echo ">> Please entre the nodes placement in PVE hosts (1, 2 or 3) with a space between them (default: 1 2 3): "
   echo 'Example: "1 1 1" means deploying three nodes kurbernetes cluster, all in PVE1.'
@@ -634,8 +635,8 @@ do
   echo "Welcome to the Proxmox Ceph K8s HA deployment script"
   echo "Please select one of rhe following options:"
   echo "-----------------------------------------------------------"
-  echo "(qc)  < Exit and CLEAN UP"
-  echo "(q)   < Exit"
+  echo "(qc)   < QUIT AND CLEAN UP ENVIRONMENT & FILES"
+  echo "(q)    < Quit"
   echo "----------------------------------------------------"
   echo "[i]....INFRASTRUCTURE"
   echo "[s]....STORAGE"
@@ -732,8 +733,8 @@ do
         echo "----------------------------------------------------"
         echo "Please select one of the following options:"
         echo "----------------------------------------------------"
-        echo "(qc)  < Exit and CLEAN UP"
-        echo "(q)   < Back"
+        echo "(qc)   < QUIT AND CLEAN UP ENVIRONMENT & FILES"
+        echo "(q)    < Quit"
         echo "----------------------------------------------------"
         echo "[1]....Initiate the infrastructure"
         echo "[2]....Download cloud image"
@@ -1031,8 +1032,8 @@ ____EOF____
         echo "----------------------------------------------------"
         echo "Please select one of the following options:"
         echo "----------------------------------------------------"
-        echo "(qc)   < Exit and CLEAN UP"
-        echo "(q)    < Exit"
+        echo "(qc)   < QUIT AND CLEAN UP ENVIRONMENT & FILES"
+        echo "(q)    < Quit"
         echo "----------------------------------------------------"
         echo "[1]....Create \"$POOL_NAME\" RBD Pool"
         echo "[2]....Create RBD Images"
@@ -1041,11 +1042,9 @@ ____EOF____
         echo "[5]....<-- Copy files from RBD images --"
         echo "----------------------------------------------------"
         echo "(pg)...Calculate PGs"
-        echo "(z1)...Zap disks in PVE1"
-        echo "(z2)...Zap disks in PVE2"
-        echo "(z3)...Zap disks in PVE3"
         echo "(um)...Unmount RBD images"
         echo "(del)..Delete RBD images"
+        echo "(zap)...Zap disks in PVE1"
         echo "(nukE).ShredOS (USB Disk Eraser)"
         echo "----------------------------------------------------"
         read STORAGE_OPTION
@@ -1160,31 +1159,32 @@ printf("SUM :\t"); for (i in poollist) printf("%s\t",sumpool[i]); printf("|\n");
 __EOF__
             END_OF_SCRIPT
             ;;
-        z1)
-            # Zap disk in PVE1
-            echo "PVE1 Disks:"
-            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} "find /dev/disk/by-id/ -type l|xargs -I{} ls -l {}|grep -v -E '[0-9]$' |sort -k11|cut -d' ' -f9,10,11,12"
-            echo ">> Please enter the disk name to zap in PVE1:"
-            read PVE1_CEPH_DISK
-            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE1} ceph-volume lvm zap ${PVE1_CEPH_DISK} --destroy
-            END_OF_SCRIPT 
-            ;;
-        z2)
-            # Zap disk in PVE2
-            echo "PVE2 Disks:"
-            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE2} "find /dev/disk/by-id/ -type l|xargs -I{} ls -l {}|grep -v -E '[0-9]$' |sort -k11|cut -d' ' -f9,10,11,12"
-            echo ">> Please enter the disk name to zap in PVE2:"
-            read PVE2_CEPH_DISK
-            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE2} ceph-volume lvm zap ${PVE2_CEPH_DISK} --destroy
-            END_OF_SCRIPT 
-            ;;
-        z3)
-            # Zap disk in PVE3
-            echo "PVE3 Disks:"
-            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE3} "find /dev/disk/by-id/ -type l|xargs -I{} ls -l {}|grep -v -E '[0-9]$' |sort -k11|cut -d' ' -f9,10,11,12"
-            echo ">> Please enter the disk name to zap in PVE3:"
-            read PVE3_CEPH_DISK
-            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE3} ceph-volume lvm zap ${PVE3_CEPH_DISK} --destroy
+        zap)
+            echo "In which PVE do you want to zap a disk (1, 2 or 3)? (Default: $PVE_DEFAULT_ID)"
+            read PVE_NUM
+            if [[ $PVE_NUM == "" ]]; then
+              PVE_NUM=$PVE_DEFAULT_ID
+            fi
+            if [[ $PVE_NUM == "1" ]]; then
+              PVE_IP=${PVE1}
+              # Zap disk in PVE1
+              echo "PVE1 Disks:"
+            fi
+            if [[ $PVE_NUM == "2" ]]; then
+              PVE_IP=${PVE2}
+              # Zap disk in PVE2
+              echo "PVE2 Disks:"
+            fi
+            if [[ $PVE_NUM == "3" ]]; then
+              PVE_IP=${PVE3}
+              # Zap disk in PVE3
+              echo "PVE3 Disks:"
+            fi
+            # ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_IP} "find /dev/disk/by-id/ -type l|xargs -I{} ls -l {}|grep -v -E '[0-9]$' |sort -k11|cut -d' ' -f9,10,11,12"
+            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_IP} "lsblk -e 7,11 -lp -o PATH && ls -x /dev/disk/by-id/*"
+            echo ">> Please enter the disk path to zap in PVE${PVE_NUM}: (example: /dev/nvme0n1)"
+            read DISK_PATH
+            ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_IP} ceph-volume lvm zap ${DISK_PATH} --destroy
             END_OF_SCRIPT 
             ;;
         um) # Unmount RBD 
@@ -1211,12 +1211,12 @@ __EOF__
             ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@${PVE_DEFAULT} "rbd rm ${RBD_IMAGE} --pool $POOL_NAME"
             ;;
         nukE)
-          echo "Please enter the storage ID to store the iso files in (Default: cephfs)"
+          echo "Please enter the storage ID to download the iso file in (Default: cephfs)"
           read ISO_STORAGE_ID
           if [[ $ISO_STORAGE_ID == "" ]]; then
             ISO_STORAGE_ID="cephfs"
           fi
-          echo "Please enter the iso download location on PVE1 (Default: /mnt/pve/cephfs/template/iso/)"
+          echo "Please enter the iso download location on PVE1 for storage $ISO_STORAGE_ID (Default: /mnt/pve/cephfs/template/iso/)"
           read ISO_DOWNLOAD_LOCATION
           if [[ $ISO_DOWNLOAD_LOCATION == "" ]]; then
             ISO_DOWNLOAD_LOCATION="/mnt/pve/cephfs/template/iso/"
@@ -1226,10 +1226,10 @@ __EOF__
           if [[ $VM_ID == "" ]]; then
             VM_ID="911"
           fi
-          echo "In which PVE do you want to create the \"ShredOS - Disk Eraser\" VM (1, 2 or 3)? (Default: 2)"
+          echo "In which PVE do you want to create the \"ShredOS - Disk Eraser\" VM (1, 2 or 3)? (Default: $PVE_DEFAULT_ID)"
           read PVE_NUM
           if [[ $PVE_NUM == "" ]]; then
-            PVE_NUM="2"
+            PVE_NUM=$PVE_DEFAULT_ID
           fi
           if [[ $PVE_NUM == "1" ]]; then
             PVE_IP=${PVE1}
@@ -1240,10 +1240,10 @@ __EOF__
           if [[ $PVE_NUM == "3" ]]; then
             PVE_IP=${PVE3}
           fi
-          ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@$PVE_IP lsusb
-          echo ">> Please enter the disk ID to attach to \"ShredOS - Disk Eraser\" VM (Example abcd:1234):"
+          ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@$PVE_IP "lsblk -e 7,11 -lp -o PATH && ls -x /dev/disk/by-id/*"
+          echo ">> Please enter the disk/dev path that you want to wipe (Example /dev/nvme0n1):"
           read PVE_CEPH_DISK
-          echo "-- Creating VM: ${VM_ID} in PVE${PVE_NUM}: .."
+          echo "-- Creating VM ${VM_ID} in PVE${PVE_NUM} and attaching $PVE_CEPH_DISK to it ..."
           ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@$PVE_IP bash << ___EOF___
 #!/bin/bash
 if [ ! -f "${ISO_DOWNLOAD_LOCATION}shredos-2021.08.2_23_x86-64_0.34_20221231.iso" ]; then
@@ -1261,7 +1261,7 @@ qm create ${VM_ID} \
     --cpu host \
     --cores ${PVE_CPU_CORES} \
     --ostype l26
-qm set ${VM_ID} -usb0 host=${PVE_CEPH_DISK}
+qm set ${VM_ID} --scsi0 $PVE_CEPH_DISK
 qm start ${VM_ID}
 ___EOF___
             PVE_HOST_NAME=$(ssh -i ${MY_PUBLIC_KEY} ${SSH_USERNAME}@$PVE_IP hostname)
@@ -1322,8 +1322,8 @@ ___EOF___
       echo "--------------------------------------------------------------"
       echo "Please select one of the following options:"
       echo "--------------------------------------------------------------"
-      echo "(qc)  < Exit and CLEAN UP"
-      echo "(q)   < Exit"
+      echo "(qc)  < QUIT AND CLEAN UP ENVIRONMENT & FILES"
+      echo "(q)   < Quit"
       echo "--------------------------------------------------------------"
       echo "[1]...Install brew, helm (and add repos), kubectl, Kompose,"
       echo "      and CoreUtils on mac"
